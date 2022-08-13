@@ -17,52 +17,26 @@ const myInit = {
   mode: 'cors',
   cache: 'default',
 };
-const Database = require("@replit/database");
-const db = new Database(config.replit_db);
+const db = require('./db');
 
 // DM user if a target played recently
 async function spy() {
   let cooldown = 60000; // 1 min cooldown default
-  const keys = await db.list();
-  for (let i = 0; i < keys.length; i++) {
-    const user = await client.users.fetch(keys[i]).catch(() => null);
-    // var data = checkTarget("194932883985530880", "G9LUYYQG8"); // for testing
-    // console.log(data);
-    if (!user) {
-      cooldown = 1800000;
-      console.log("Cooldown (ms): " + cooldown);
-      setTimeout(spy, cooldown);
-      return console.log("User not found");
-    }
-
-    const targets = await db.get(keys[i]);
-    for (let i = 0; i < targets.length; i++) {
-      if (await checkTarget(user, targets[i]))
-        cooldown = 1800000; // half hour cooldown if target played recently
-    }
-  }
+  const player_tags = db.getPlayerTags();
+  for (let i = 0; i < player_tags.length; i++)
+    if (await checkTarget(player_tags[i]))
+      cooldown = 1800000; // half hour cooldown if target played recently
   console.log("Cooldown (ms): " + cooldown);
   setTimeout(spy, cooldown);
 }
 setTimeout(spy, 3000);
 
-async function checkTarget(user, target) {
+async function checkTarget(target) {
   let found = false;
   let minuteDiff = 5;
   let json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
-  // .then(res => {
-  //   return res.json();
-  // })
-  // console.log(target);
-  // console.log(json);
-  // console.log("json length: " + json.length);
   if (json.length > 0) {
-    // var n = json[0]["team"].length;
-    // if (n > 0)
-    //   ign = json[0]["team"][n - 1]["name"];
-    // console.log("Target: #" + target);
     var battleTime = json[0]["battleTime"];
-    // console.log(battleTime);
     var present = new Date();
     var year = parseInt(battleTime.substring(0, 4));
     var month = parseInt(battleTime.substring(4, 6)) - 1;
@@ -83,10 +57,18 @@ async function checkTarget(user, target) {
     ign = playerJson.name;
     const msg = ign + " (" + target + ") has played a match in the last 5 minutes!";
     console.log(msg);
-    await user.send(msg).catch(() => {
-      console.log("User has DMs closed or no mutual servers with the bot");
-      return;
-    });
+    const users = db.getWatchers(target);
+    for (let x = 0; x < users.length; x++) {
+      const user = await client.users.fetch(users[x]) // .catch(err => console.error(err));
+      if (!user) {
+        console.log("User not found");
+        return true;
+      }
+      user.send(msg).catch(() => {
+        console.log("User has DMs closed or no mutual servers with the bot");
+        return;
+      });
+    }
     found = true;
   }
   return found;
@@ -104,75 +86,52 @@ async function safeParseJSON(response) {
   }
 }
 
-async function addTag(userID, targetTag) {
-  const targets = await db.get(userID);
-  if (targets != null && targets.includes(targetTag))
-    return false;
-  if (targets == null) {
-    await db.set(userID, [targetTag]);
-  } else {
-    targets.push(targetTag);
-    await db.set(userID, targets);
-  }
-  return true;
-}
-
-async function deleteTag(userID, targetTag) {
-  const targets = await db.get(userID)
-  if (targets == null || !targets.includes(targetTag))
-    return false;
-  const index = targets.indexOf(targetTag);
-  if (index > -1)
-    targets.splice(index, 1); // 2nd parameter means remove one item only
-  await db.set(userID, targets);
-  return true;
-}
-
 client.on('ready', () => {
   client.user.setActivity("Clash Royale players", { type: "WATCHING" });
   console.log(client.user.username + ' is online.');
 });
 
-client.on('messageCreate', async (msg) => {
+client.on('messageCreate', (msg) => {
   if (!msg.content.startsWith(config.prefix) || msg.author.bot)
     return;
   // if (msg.author.bot || msg.channel.type === "dm")
   //   return;
   const messageArray = msg.content.split(' ');
-  const cmd = messageArray[0];
-  const args = msg.content.substring(msg.content.indexOf(' ') + 1);
-  const prefix = config.prefix;
+  const cmd = messageArray[0].substring(2);
+  const targetTag = msg.content.substring(msg.content.indexOf(' ') + 1);
 
-  if (cmd === prefix + 'ping') {
-    msg.author.send({
-      content: 'pong!'
-    }).catch(() => {
-      console.log("User has DMs closed or no mutual servers with the bot");
-      return;
-    });
-    msg.channel.send({
-      content: 'pong!'
-    });
-  } else if (cmd === prefix + 'spy') {
-    const targetTag = args;
-    added = await addTag(msg.author.id, targetTag);
-    if (added)
-      msg.channel.send("New target tag " + targetTag + " added.");
-    else
-      msg.channel.send("Target tag " + targetTag + " already tracked!");
-  } else if (cmd === prefix + 'stop') {
-    const targetTag = args;
-    deleted = await deleteTag(msg.author.id, targetTag);
-    if (deleted)
-      msg.channel.send("Tag " + targetTag + " deleted.");
-    else
-      msg.channel.send("Tag " + targetTag + " does not exist!");
-  } else if (cmd === prefix + 'list') {
-    targets = await db.get(msg.author.id);
-    if (targets.length > 0)
-      msg.channel.send(targets.toString());
-    else
-      msg.channel.send("You have no targets!");
+  switch (cmd) {
+    case 'ping':
+      msg.author.send('pong!').catch(() => {
+        console.log("User has DMs closed or no mutual servers with the bot");
+        return;
+      });
+      msg.channel.send('pong!');
+      break;
+    case 'help': // todo
+      msg.channel.send("My prefix is `c!`. Type `c!spy <tag>` to watch a player, `c!stop <tag>` to stop watching a player, and `c!list` to see your current targets!");
+      break;
+    case 'spy':
+      added = db.addWatcher(targetTag, msg.author.id);
+      if (added)
+        msg.channel.send("New target tag " + targetTag + " added.");
+      else
+        msg.channel.send("Target tag " + targetTag + " already tracked!");
+      break;
+    case 'stop':
+      deleted = db.deleteWatcher(targetTag, msg.author.id);
+      if (deleted)
+        msg.channel.send("Tag " + targetTag + " deleted.");
+      else
+        msg.channel.send("Tag " + targetTag + " is not tracked!");
+      break;
+    case 'list':
+      targets = db.getTargets(msg.author.id);
+      if (targets.length > 0)
+        msg.channel.send(targets.toString());
+      else
+        msg.channel.send("You have no targets!");
+      break;
   }
 });
 
