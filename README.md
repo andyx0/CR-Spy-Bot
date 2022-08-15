@@ -7,10 +7,12 @@ If the bot finds that a friend played recently, it sends a direct message notifi
 Download the source code from the repository and compile all the source code, then run the index file.
 
 * Run: `node index.js`
+* OPTIONAL (run in background on Linux): `pm2 start index.js`
 
 
 ## Dependencies
 * [Node.js](https://nodejs.org/en/)
 * [Discord.js](https://discord.js.org/#/)
-* [node-fetch](https://www.npmjs.com/package/node-fetch)
-* [better-sqlite3](https://www.npmjs.com/package/better-sqlite3)
+* [Node Fetch](https://www.npmjs.com/package/node-fetch)
+* [Better SQLite3](https://www.npmjs.com/package/better-sqlite3)
+* [PM2](https://www.npmjs.com/package/pm2) (optional)
