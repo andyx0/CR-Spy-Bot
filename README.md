@@ -4,8 +4,10 @@ If the bot finds that a friend played recently, it sends a direct message notifi
 
 
 ## Running the application
-Download the source code from the repository and compile all the source code, then run the index file.
+Download the source code from the repository and compile all the source code, fill in the data in config.js, then run index.js.
 
+* config.token: [Discord bot token](https://discord.com/developers/docs/getting-started)
+* config.cr_key: [Clash Royale API key](https://developer.clashroyale.com/#/getting-started)
 * Run: `node index.js`
 * OPTIONAL (run in background on Linux): `pm2 start index.js`
 
