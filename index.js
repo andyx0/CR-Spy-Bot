@@ -6,7 +6,6 @@ const client = new djs.Client({
     "DIRECT_MESSAGES"
   ]
 });
-// const config = process.env;
 const config = require('./config');
 const fetch = require("node-fetch");
 const myInit = {
@@ -19,7 +18,6 @@ const myInit = {
 };
 const db = require('./db');
 
-// DM user if a target played recently
 async function spy() {
   let cooldown = 60000; // 1 min cooldown default
   const player_tags = db.getPlayerTags();
@@ -51,11 +49,10 @@ async function checkTarget(target) {
     minuteDiff /= 60.0; // timeDiff in minutes
     console.log("Minute difference: " + minuteDiff);
   }
+  // Message watchers if target played recently
   if (minuteDiff < 5) {
-    let ign = "";
-    const playerJson = await fetch("https://api.clashroyale.com/v1/players/%23" + target, myInit).then(safeParseJSON);
-    ign = playerJson.name;
-    const msg = ign + " (" + target + ") has played a match in the last 5 minutes!";
+    const ign = await getPlayerName(target);
+    const msg = `"${ign} (${target}) has played a match in the last 5 minutes!"`;
     console.log(msg);
     const users = db.getWatchers(target);
     for (let x = 0; x < users.length; x++) {
@@ -86,19 +83,24 @@ async function safeParseJSON(response) {
   }
 }
 
+async function getPlayerName(playerTag) {
+  const playerJson = await fetch("https://api.clashroyale.com/v1/players/%23" + playerTag, myInit).then(safeParseJSON);
+  return playerJson.name;
+}
+
 client.on('ready', () => {
   client.user.setActivity("Clash Royale players", { type: "WATCHING" });
   console.log(client.user.username + ' is online.');
 });
 
-client.on('messageCreate', (msg) => {
+client.on('messageCreate', async (msg) => {
   if (!msg.content.startsWith(config.prefix) || msg.author.bot)
     return;
   // if (msg.author.bot || msg.channel.type === "dm")
   //   return;
   const messageArray = msg.content.split(' ');
   const cmd = messageArray[0].substring(2);
-  const targetTag = msg.content.substring(msg.content.indexOf(' ') + 1);
+  const targetTag = msg.content.substring(msg.content.indexOf(' ') + 1).toUpperCase();
 
   switch (cmd) {
     case 'ping':
@@ -112,23 +114,29 @@ client.on('messageCreate', (msg) => {
       msg.channel.send("My prefix is `c!`. Type `c!spy <tag>` to watch a player, `c!stop <tag>` to stop watching a player, and `c!list` to see your current targets!");
       break;
     case 'spy':
-      added = db.addWatcher(targetTag, msg.author.id);
-      if (added)
-        msg.channel.send("New target tag " + targetTag + " added.");
-      else
-        msg.channel.send("Target tag " + targetTag + " already tracked!");
+      const playerName = await getPlayerName(targetTag);
+      const validPlayerTag = (playerName != null);
+      if (validPlayerTag) {
+        added = db.addWatcher(targetTag, msg.author.id);
+        if (added)
+          msg.channel.send(`New target ${playerName} (${targetTag}) added!`);
+        else
+          msg.channel.send(`Target ${playerName} (${targetTag}) already tracked!`);
+      } else {
+        msg.channel.send("Invalid player tag!");
+      }
       break;
     case 'stop':
       deleted = db.deleteWatcher(targetTag, msg.author.id);
       if (deleted)
-        msg.channel.send("Tag " + targetTag + " deleted.");
+        msg.channel.send(`Tag ${targetTag} deleted!`);
       else
-        msg.channel.send("Tag " + targetTag + " is not tracked!");
+        msg.channel.send(`Tag ${targetTag} is not tracked!`);
       break;
     case 'list':
       targets = db.getTargets(msg.author.id);
       if (targets.length > 0)
-        msg.channel.send(targets.toString());
+        msg.channel.send(targets.join(", "));
       else
         msg.channel.send("You have no targets!");
       break;
