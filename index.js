@@ -52,7 +52,7 @@ async function checkTarget(target) {
   // Message watchers if target played recently
   if (minuteDiff < 5) {
     const ign = await getPlayerName(target);
-    const msg = `"${ign} (${target}) has played a match in the last 5 minutes!"`;
+    const msg = `${ign} (${target}) has played a match in the last 5 minutes!`;
     console.log(msg);
     const users = db.getWatchers(target);
     for (let x = 0; x < users.length; x++) {
