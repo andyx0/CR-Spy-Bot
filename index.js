@@ -18,45 +18,48 @@ const myInit = {
 };
 const db = require('./db');
 
-async function spy() {
+async function spy(player_tag) {
   let cooldown = 60000; // 1 min cooldown default
-  const player_tags = db.getPlayerTags();
-  for (let i = 0; i < player_tags.length; i++)
-    if (await checkTarget(player_tags[i]))
-      cooldown = 1800000; // half hour cooldown if target played recently
-  console.log("Cooldown (ms): " + cooldown);
-  setTimeout(spy, cooldown);
+  if (await checkTarget(player_tag))
+    cooldown = 1800000; // half hour cooldown if target played recently
+  console.log(`Cooldown (ms) for ${player_tag}: ${cooldown}`);
+  setTimeout(spy, cooldown, player_tag);
 }
-setTimeout(spy, 3000);
+const player_tags = db.getPlayerTags();
+for (let i = 0; i < player_tags.length; i++)
+  setTimeout(spy, 5000, player_tags[i]); // wait 5 seconds on startup
 
 async function checkTarget(target) {
   let found = false;
   let minuteDiff = 5;
-  let json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
+  let json;
+  try {
+    json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
+  } catch (err) {
+    return true;
+  }
   if (json.length > 0) {
-    var battleTime = json[0]["battleTime"];
-    var present = new Date();
-    var year = parseInt(battleTime.substring(0, 4));
-    var month = parseInt(battleTime.substring(4, 6)) - 1;
-    var day = parseInt(battleTime.substring(6, 8));
-    var hour = parseInt(battleTime.substring(9, 11)) - 4;
-    var minute = parseInt(battleTime.substring(11, 13));
-    var second = parseInt(battleTime.substring(13, 15));
-    var lastBattle = new Date(year, month, day, hour, minute, second);
-    console.log("Current time: " + present);
-    console.log("Last battle time: " + lastBattle);
-    minuteDiff = (present - lastBattle) / 1000; // timeDiff in seconds
-    minuteDiff /= 60.0; // timeDiff in minutes
-    console.log("Minute difference: " + minuteDiff);
+    minuteDiff = getMinDiff(json);
+    console.log(`Minute difference for ${target}: ${minuteDiff}`);
   }
   // Message watchers if target played recently
   if (minuteDiff < 5) {
-    const ign = await getPlayerName(target);
-    const msg = `${ign} (${target}) has played a match in the last 5 minutes!`;
+    let ign;
+    try {
+      ign = await getPlayerName(target);
+    } catch (err) {
+      return true;
+    }
+    const msg = `${ign} (${target}) has played a ${json[0]["type"]} match in the last 5 minutes!`;
     console.log(msg);
     const users = db.getWatchers(target);
     for (let x = 0; x < users.length; x++) {
-      const user = await client.users.fetch(users[x]) // .catch(err => console.error(err));
+      let user;
+      try {
+        user = await client.users.fetch(users[x]);
+      } catch (err) {
+        return true;
+      }
       if (!user) {
         console.log("User not found");
         return true;
@@ -83,6 +86,22 @@ async function safeParseJSON(response) {
   }
 }
 
+function getMinDiff(json) {
+  var battleTime = json[0]["battleTime"];
+  var present = new Date();
+  var year = parseInt(battleTime.substring(0, 4));
+  var month = parseInt(battleTime.substring(4, 6)) - 1;
+  var day = parseInt(battleTime.substring(6, 8));
+  var hour = parseInt(battleTime.substring(9, 11)) - 4;
+  var minute = parseInt(battleTime.substring(11, 13));
+  var second = parseInt(battleTime.substring(13, 15));
+  var lastBattle = new Date(year, month, day, hour, minute, second);
+  // console.log("Current time:", present);
+  // console.log("Last battle time:", lastBattle);
+  minuteDiff = (present - lastBattle) / 1000; // timeDiff in seconds
+  return minuteDiff / 60.0; // timeDiff in minutes
+}
+
 async function getPlayerName(playerTag) {
   const playerJson = await fetch("https://api.clashroyale.com/v1/players/%23" + playerTag, myInit).then(safeParseJSON);
   return playerJson.name;
@@ -90,7 +109,7 @@ async function getPlayerName(playerTag) {
 
 client.on('ready', () => {
   client.user.setActivity("Clash Royale players", { type: "WATCHING" });
-  console.log(client.user.username + ' is online.');
+  console.log(client.user.username, 'is online.');
 });
 
 client.on('messageCreate', async (msg) => {
@@ -104,10 +123,6 @@ client.on('messageCreate', async (msg) => {
 
   switch (cmd) {
     case 'ping':
-      msg.author.send('pong!').catch(() => {
-        console.log("User has DMs closed or no mutual servers with the bot");
-        return;
-      });
       msg.channel.send('pong!');
       break;
     case 'help': // todo
@@ -117,11 +132,15 @@ client.on('messageCreate', async (msg) => {
       const playerName = await getPlayerName(targetTag);
       const validPlayerTag = (playerName != null);
       if (validPlayerTag) {
+        const playerTags = db.getPlayerTags();
         added = db.addWatcher(targetTag, msg.author.id);
-        if (added)
+        if (added) {
           msg.channel.send(`New target ${playerName} (${targetTag}) added!`);
-        else
+          if (!playerTags.includes(targetTag))
+            spy(targetTag);
+        } else {
           msg.channel.send(`Target ${playerName} (${targetTag}) already tracked!`);
+        }
       } else {
         msg.channel.send("Invalid player tag!");
       }
