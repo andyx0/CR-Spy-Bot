@@ -9,7 +9,7 @@ Download the source code from the repository and compile all the source code, fi
 * config.token: [Discord bot token](https://discord.com/developers/docs/getting-started)
 * config.cr_key: [Clash Royale API key](https://developer.clashroyale.com/#/getting-started)
 * Run: `node index.js`
-* OPTIONAL (run in background on Linux): `pm2 start index.js`
+* Run in background on Linux (optional): `pm2 start index.js`
 
 
 ## Dependencies
