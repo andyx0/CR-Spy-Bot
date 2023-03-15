@@ -18,7 +18,7 @@ const myInit = {
     cache: 'default'
 };
 const pfp = 'https://cdn.discordapp.com/avatars/958103047886766120/f9f7d78383a2a01e43f0b8f36eda4c52.png';
-let helpEmbed = new MessageEmbed()
+const helpEmbed = new MessageEmbed()
     .setAuthor({ name: 'HEHEHEHA', iconURL: pfp })
     .setTitle("Command List")
     .setDescription('c!spy, c!stop, c!list')
@@ -30,19 +30,17 @@ let helpEmbed = new MessageEmbed()
         { name: 'c!list', value: 'List your current targets', inline: true },
     )
     .setFooter({ text: 'HEHEHEHA', iconURL: pfp });
-let listEmbed = new MessageEmbed()
+const listEmbed = new MessageEmbed()
     .setColor(0x0099FF)
     .setAuthor({ name: 'HEHEHEHA', iconURL: pfp })
     .setTitle("Current Watchlist")
     .setThumbnail(pfp)
     .setFooter({ text: 'HEHEHEHA', iconURL: pfp });
 const db = require('./db');
+const msPerMin = 60000;
 
 async function spy(player_tag) {
-    let cooldown = 60000; // 1 min cooldown default
-    if (await checkTarget(player_tag)) {
-        cooldown = 1800000; // half hour cooldown if target played recently
-    }
+    let cooldown = await checkTarget(player_tag);
     console.log(`Cooldown (ms) for ${player_tag}: ${cooldown}`);
     setTimeout(spy, cooldown, player_tag);
 }
@@ -52,19 +50,19 @@ for (let i = 0; i < player_tags.length; i++) {
 }
 
 async function checkTarget(target) {
-    let found = false;
     let minuteDiff = 5;
-    let json;
     try {
-        json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
+        let json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
         if (json.length > 0) {
             minuteDiff = getMinDiff(json);
             console.log(`Minute difference for ${target}: ${minuteDiff}`);
+        } else {
+            console.log(`Target ${target} has not played for over a month`);
+            return msPerMin * 60 * 24;
         }
         // Message watchers if target played recently
         if (minuteDiff < 5) {
-            let ign;
-            ign = await getPlayerName(target);
+            let ign = await getPlayerName(target);
             const msg = `${ign} (${target}) has played a ${json[0]["type"]} match in the last 5 minutes!`;
             console.log(msg);
             const users = db.getWatchers(target);
@@ -73,19 +71,19 @@ async function checkTarget(target) {
                 user = await client.users.fetch(users[x]);
                 if (!user) {
                     console.log("User not found");
-                    return true;
+                    return 30 * msPerMin;
                 }
                 user.send(msg).catch(() => {
                     console.log("User has DMs closed or no mutual servers with the bot");
                     return;
                 });
             }
-            found = true;
+            return 30 * msPerMin; // half hour cooldown if target played recently
         }
     } catch (err) {
-        return true;
+        return 30 * msPerMin;
     }
-    return found;
+    return msPerMin; // 1 min cooldown default
 }
 
 async function safeParseJSON(response) {
@@ -101,15 +99,15 @@ async function safeParseJSON(response) {
 }
 
 function getMinDiff(json) {
-    var battleTime = json[0]["battleTime"];
-    var present = new Date();
-    var year = parseInt(battleTime.substring(0, 4));
-    var month = parseInt(battleTime.substring(4, 6)) - 1; // account for 0 indexed months
-    var day = parseInt(battleTime.substring(6, 8));
-    var hour = parseInt(battleTime.substring(9, 11)) - 5;
-    var minute = parseInt(battleTime.substring(11, 13));
-    var second = parseInt(battleTime.substring(13, 15));
-    var lastBattle = new Date(year, month, day, hour, minute, second);
+    const battleTime = json[0]["battleTime"];
+    const present = new Date();
+    const year = parseInt(battleTime.substring(0, 4));
+    const month = parseInt(battleTime.substring(4, 6)) - 1; // account for 0 indexed months
+    const day = parseInt(battleTime.substring(6, 8));
+    const hour = parseInt(battleTime.substring(9, 11)) - 4; // convert to UTC
+    const minute = parseInt(battleTime.substring(11, 13));
+    const second = parseInt(battleTime.substring(13, 15));
+    const lastBattle = new Date(year, month, day, hour, minute, second);
     // console.log("Current time:", present);
     // console.log("Last battle time:", lastBattle);
     minuteDiff = (present - lastBattle) / 1000; // timeDiff in seconds
