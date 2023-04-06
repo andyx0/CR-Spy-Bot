@@ -32,18 +32,17 @@ const helpEmbed = new MessageEmbed()
     .setFooter({ text: 'HEHEHEHA', iconURL: pfp });
 const listEmbed = new MessageEmbed()
     .setColor(0x0099FF)
-    .setAuthor({ name: 'HEHEHEHA', iconURL: pfp })
     .setTitle("Current Watchlist")
-    .setThumbnail(pfp)
-    .setFooter({ text: 'HEHEHEHA', iconURL: pfp });
+    .setThumbnail(pfp);
 const db = require('./db');
 const msPerMin = 60000;
 
 async function spy(player_tag) {
-    let cooldown = await checkTarget(player_tag);
+    const cooldown = await checkTarget(player_tag);
     console.log(`Cooldown (ms) for ${player_tag}: ${cooldown}`);
     setTimeout(spy, cooldown, player_tag);
 }
+db.cleanUnwatchedPlayers(); // purge unwatched players on startup
 const player_tags = db.getPlayerTags();
 for (let i = 0; i < player_tags.length; i++) {
     setTimeout(spy, 5000, player_tags[i]); // wait 5 seconds on startup
@@ -52,23 +51,22 @@ for (let i = 0; i < player_tags.length; i++) {
 async function checkTarget(target) {
     let minuteDiff = 5;
     try {
-        let json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
+        const json = await fetch("https://api.clashroyale.com/v1/players/%23" + target + "/battlelog", myInit).then(safeParseJSON);
         if (json.length > 0) {
             minuteDiff = getMinDiff(json);
             console.log(`Minute difference for ${target}: ${minuteDiff}`);
         } else {
             console.log(`Target ${target} has not played for over a month`);
-            return msPerMin * 60 * 24;
+            return msPerMin * 60;
         }
         // Message watchers if target played recently
         if (minuteDiff < 5) {
-            let ign = await getPlayerName(target);
+            const ign = await getPlayerName(target);
             const msg = `${ign} (${target}) has played a ${json[0]["type"]} match in the last 5 minutes!`;
             console.log(msg);
             const users = db.getWatchers(target);
-            for (let x = 0; x < users.length; x++) {
-                let user;
-                user = await client.users.fetch(users[x]);
+            for (let i = 0; i < users.length; i++) {
+                const user = await client.users.fetch(users[i]);
                 if (!user) {
                     console.log("User not found");
                     return 30 * msPerMin;
@@ -173,7 +171,9 @@ client.on('messageCreate', async (msg) => {
         case 'list':
             targets = db.getTargets(msg.author.id);
             if (targets.length > 0) {
+                listEmbed.setAuthor({ name: `${msg.author.username}#${msg.author.discriminator}`, iconURL: msg.author.displayAvatarURL() })
                 listEmbed.setDescription(targets.join(", ")).setTimestamp();
+                listEmbed.setFooter({ text: `User ID: ${msg.author.id}` });
                 msg.channel.send({ embeds: [listEmbed] });
                 // msg.channel.send(targets.join(", "));
             } else {

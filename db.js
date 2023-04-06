@@ -31,6 +31,13 @@ function addWatcher(tag, watcher_id) {
     return true;
 }
 
+function insertStarterTargets() {
+    const stmt = db.prepare("INSERT INTO users(player_tag, watchers) VALUES(?, ?)");
+    for (let i = 0; i < starterTargets.length; i++) {
+        stmt.run(starterTargets[i], JSON.stringify(["194932883985530880"]));
+    }
+}
+
 // Update data
 function update(tag, watchers) {
     db.prepare("UPDATE users SET watchers = ? WHERE player_tag = ?").run(watchers, tag);
@@ -52,6 +59,10 @@ function deleteWatcher(tag, watcher_id) {
 
 function deleteRow(tag) {
     db.prepare("DELETE FROM users WHERE player_tag = ?").run(tag);
+}
+
+function cleanUnwatchedPlayers() {
+    db.prepare("DELETE FROM users WHERE watchers = ?").run("[]");
 }
 
 function getPlayerTags() {
@@ -92,12 +103,16 @@ function query() {
 
 // createTable();
 // dropTable();
-// console.log(insert("test", "lol"));
-// console.log(deleteData("test", "lol"));
-// deleteRow("test");
+// console.log(addWatcher("test", "lol"));
+// console.log(addWatcher("test", ""));
+// console.log(deleteWatcher("test", "lol"));
+// console.log(deleteWatcher("test", ""));
+// deleteRow("g9luyyqg8");
 // console.log(getPlayerTags());
-// console.log(getWatchers("G9LUYYQG8"));
+// console.log(getWatchers("2G08CVJ9"));
 // console.log(getTargets("194932883985530880"));
 // query();
+// cleanUnwatchedPlayers();
+// query();
 
-module.exports = { addWatcher, deleteWatcher, getPlayerTags, getWatchers, getTargets };
+module.exports = { addWatcher, deleteWatcher, cleanUnwatchedPlayers, getPlayerTags, getWatchers, getTargets };
