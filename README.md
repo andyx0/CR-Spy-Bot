@@ -4,12 +4,12 @@ If the bot finds that a friend played recently, it sends a direct message notifi
 
 
 ## Running the application
-Download the source code from the repository and compile all the source code, fill in the data in config.js, then run index.js.
+Download the source code from the repository and compile all the source code, rename config-example.js to config.js, fill in the data in config.js, then run index.js.
 
 * config.token: [Discord bot token](https://discord.com/developers/docs/getting-started)
 * config.cr_key: [Clash Royale API key](https://developer.clashroyale.com/#/getting-started)
 * Run: `node index.js`
-* Run in background on Linux (optional): `pm2 start index.js`
+* Run in background on Linux (optional): `pm2 start index.js --name "CR Spy Bot"`
 
 
 ## Dependencies

@@ -1,118 +1,96 @@
-const db = require('better-sqlite3')('./test.db');
+const db = require('better-sqlite3')('./bot.db');
 
 // Create table
 function createTable() {
-    db.prepare("CREATE TABLE users(id INTEGER PRIMARY KEY, player_tag, watchers)").run();
+    db.prepare("CREATE TABLE watches(watcher VARCHAR(18) NOT NULL, player_tag NOT NULL, PRIMARY KEY(watcher, player_tag))").run();
 }
 
 // Drop table
 function dropTable() {
-    db.prepare("DROP TABLE users").run();
+    db.prepare("DROP TABLE watches").run();
 }
 
 // Rename table columns
 function renameColumn(currentName, newName) {
-    db.prepare(`"ALTER TABLE users RENAME COLUMN ${currentName} TO ${newName}"`).run();
+    const stmt = db.prepare("ALTER TABLE watches RENAME COLUMN ? TO ?");
+    stmt.run(currentName, newName);
 }
 
 // Insert data into table
 function addWatcher(tag, watcher_id) {
-    const watchers = db.prepare("SELECT watchers FROM users WHERE player_tag = ?").get(tag);
-    if (watchers != null) {
-        let watcher_list = JSON.parse(watchers.watchers);
-        if (watcher_list.includes(watcher_id))
-            return false;
-        watcher_list.push(watcher_id);
-        update(tag, JSON.stringify(watcher_list));
-    } else {
-        const stmt = db.prepare("INSERT INTO users(player_tag, watchers) VALUES(?, ?)");
-        stmt.run(tag, JSON.stringify([watcher_id]));
+    try {
+        const stmt = db.prepare("INSERT INTO watches(watcher, player_tag) VALUES(?, ?)");
+        stmt.run(watcher_id, tag);
+        return true;
+    } catch {
+        return false;
     }
-    return true;
 }
 
 function insertStarterTargets() {
-    const stmt = db.prepare("INSERT INTO users(player_tag, watchers) VALUES(?, ?)");
+    const stmt = db.prepare("INSERT INTO watches(watcher, player_tag) VALUES(?, ?)");
     for (let i = 0; i < starterTargets.length; i++) {
-        stmt.run(starterTargets[i], JSON.stringify(["194932883985530880"]));
+        stmt.run("194932883985530880", starterTargets[i]);
     }
-}
-
-// Update data
-function update(tag, watchers) {
-    db.prepare("UPDATE users SET watchers = ? WHERE player_tag = ?").run(watchers, tag);
 }
 
 // Delete data
 function deleteWatcher(tag, watcher_id) {
-    const watchers = db.prepare("SELECT watchers FROM users WHERE player_tag = ?").get(tag);
-    if (watchers == null)
-        return false;
-    let watcher_list = JSON.parse(watchers.watchers);
-    if (!watcher_list.includes(watcher_id))
-        return false;
-    const index = watcher_list.indexOf(tag);
-    watcher_list.splice(index, 1); // 2nd parameter means remove one item only
-    update(tag, JSON.stringify(watcher_list));
-    return true;
+    const stmt = db.prepare("DELETE FROM watches WHERE watcher = ? AND player_tag = ?");
+    const info = stmt.run(watcher_id, tag);
+    return info.changes > 0;
 }
 
 function deleteRow(tag) {
-    db.prepare("DELETE FROM users WHERE player_tag = ?").run(tag);
-}
-
-function cleanUnwatchedPlayers() {
-    db.prepare("DELETE FROM users WHERE watchers = ?").run("[]");
+    db.prepare("DELETE FROM watches WHERE player_tag = ?").run(tag);
 }
 
 function getPlayerTags() {
-    const rows = db.prepare("SELECT player_tag FROM users").all();
-    let result = [];
-    for (const row of rows)
+    const rows = db.prepare("SELECT DISTINCT player_tag FROM watches").all();
+    const result = [];
+    for (const row of rows) {
         result.push(row.player_tag);
+    }
     return result;
 }
 
 function getWatchers(player_tag) {
-    const row = db.prepare("SELECT watchers FROM users WHERE player_tag = ?").get(player_tag);
-    return JSON.parse(row.watchers);
+    const rows = db.prepare("SELECT watcher FROM watches WHERE player_tag = ?").all(player_tag);
+    const result = [];
+    for (const row of rows) {
+        result.push(row.watcher);
+    }
+    return result;
 }
 
 function getTargets(watcher_id) {
-    const rows = db.prepare("SELECT * FROM users").all();
-    let targets = [];
+    const rows = db.prepare("SELECT player_tag FROM watches WHERE watcher = ?").all(watcher_id);
+    const targets = [];
     for (const row of rows) {
-        watchers = JSON.parse(row.watchers);
-        if (watchers.includes(watcher_id))
-            targets.push(row.player_tag);
+        targets.push(row.player_tag);
     }
     return targets;
 }
 
 // Query the data
 function query() {
-    // const stmt = db.prepare("SELECT * FROM users WHERE player_tag = ?");
-    // const player = stmt.get('RP8VUYPVU');
-    // console.log(player);
-    const stmt = db.prepare("SELECT * FROM users");
+    const stmt = db.prepare("SELECT * FROM watches");
     for (const row of stmt.iterate()) {
         console.log(row);
-        console.log(row.player_tag);
     }
 }
 
 // createTable();
 // dropTable();
-// console.log(addWatcher("test", "lol"));
+// console.log(addWatcher("2G08CVJ9", "194932883985530880"));
 // console.log(addWatcher("test", ""));
-// console.log(deleteWatcher("test", "lol"));
+// console.log(deleteWatcher("2G08CVJ9", "194932883985530880"));
 // console.log(deleteWatcher("test", ""));
 // deleteRow("g9luyyqg8");
 // console.log(getPlayerTags());
 // console.log(getWatchers("2G08CVJ9"));
 // console.log(getTargets("194932883985530880"));
-// query();
-// cleanUnwatchedPlayers();
+// insertStarterTargets();
 // query();
 
-module.exports = { addWatcher, deleteWatcher, cleanUnwatchedPlayers, getPlayerTags, getWatchers, getTargets };
+module.exports = { addWatcher, deleteWatcher, getPlayerTags, getWatchers, getTargets };

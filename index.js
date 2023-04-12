@@ -42,7 +42,6 @@ async function spy(player_tag) {
     console.log(`Cooldown (ms) for ${player_tag}: ${cooldown}`);
     setTimeout(spy, cooldown, player_tag);
 }
-db.cleanUnwatchedPlayers(); // purge unwatched players on startup
 const player_tags = db.getPlayerTags();
 for (let i = 0; i < player_tags.length; i++) {
     setTimeout(spy, 5000, player_tags[i]); // wait 5 seconds on startup
